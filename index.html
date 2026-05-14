@@ -69,7 +69,7 @@ ul.task-list li input[type="checkbox"] {
 <p><code>Worker Self-Service</code></p>
 <section id="medical-leave-submission" class="level1">
 <h1>Medical Leave Submission</h1>
-<p>Please fill in personal details on this page. Each successful submission is automatically saved into the Excel file configured for HR.</p>
+<p>Workers can submit their details on this page. Each successful submission is written to the current Excel workbook path used by the app.</p>
 <ul>
 <li>Prepare your <code>Worker ID</code></li>
 <li>Confirm your <code>Name</code></li>
@@ -78,6 +78,14 @@ ul.task-list li input[type="checkbox"] {
 </ul>
 </section>
 </div>
+<section id="storage-note" class="level2 hero-side">
+<h2 class="anchored" data-anchor-id="storage-note">Storage Note</h2>
+<p>When this app runs on <code>shinyapps.io</code>, it can write to an Excel file inside the app instance, but that local file is not guaranteed to persist across redeploys or instance changes.</p>
+<p>Use a remote storage service if you need permanent HR records.</p>
+</section>
+</div>
+<div class="deploy-note">
+<p>For permanent cloud storage, replace local Excel writing with a remote backend such as Google Sheets, OneDrive/SharePoint, Dropbox, or a database.</p>
 </div>
 <div class="cell">
 <div class="cell-output-display no-overflow-x">
@@ -116,47 +124,29 @@ ul.task-list li input[type="checkbox"] {
 </div>
 </div>
 </div>
-<button class="btn btn-default action-button primary-btn" id="submit" type="button"><span class="action-label">Submit</span></button>
+<button class="btn btn-default action-button primary-btn" id="submit" type="button"><span class="action-label">Save To Excel</span></button>
 <div class="status-wrap">
 <div id="status_ui" class="shiny-html-output"></div>
 </div>
 <div class="file-line">
 <strong>Excel file: </strong>
-<code>Z:/Yang Lu/Leave Application/medical_leave_records.xlsx</code>
+<code>C:/Users/roxyy/Roxy-97/RVD/data/medical_leave_records.xlsx</code>
 </div>
 </div>
 </div>
 </div>
 <p>
 <script type="application/shiny-prerendered" data-context="server-start">
-user_lib <- Sys.getenv("R_LIBS_USER")
-if (nzchar(user_lib)) {
-  dir.create(user_lib, recursive = TRUE, showWarnings = FALSE)
-  .libPaths(c(normalizePath(user_lib, winslash = "/", mustWork = FALSE), .libPaths()))
-}
-
 required_packages <- c("shiny", "openxlsx")
 missing_packages <- required_packages[
   !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
 ]
 
 if (length(missing_packages) > 0) {
-  install.packages(
-    missing_packages,
-    repos = "https://cloud.r-project.org",
-    lib = if (nzchar(user_lib)) user_lib else .libPaths()[1]
-  )
-}
-
-still_missing <- required_packages[
-  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
-]
-
-if (length(still_missing) > 0) {
   stop(
     paste0(
-      "Please install the required package(s): ",
-      paste(still_missing, collapse = ", ")
+      "Please install the following package(s) before running or publishing: ",
+      paste(missing_packages, collapse = ", ")
     )
   )
 }
@@ -164,7 +154,7 @@ if (length(still_missing) > 0) {
 library(shiny)
 library(openxlsx)
 
-default_xlsx <- file.path("Z:/Yang Lu/Leave Application", "medical_leave_records.xlsx")
+default_xlsx <- file.path("data", "medical_leave_records.xlsx")
 excel_path <- path.expand(Sys.getenv("HR_MEDICAL_LEAVE_EXCEL", unset = default_xlsx))
 
 allowed_leave_types <- c("Medical leave", "Annual leave")

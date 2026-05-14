@@ -4,3 +4,5 @@
 .Ruserdata
 
 /.quarto/
+/data/medical_leave_records.xlsx
+/rsconnect/

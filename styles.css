@@ -27,7 +27,8 @@ body {
 .hero-side,
 .form-shell,
 .field-card,
-.status-box {
+.status-box,
+.deploy-note {
   background: var(--ml-surface);
   border: 1px solid var(--ml-border);
   border-radius: 22px;
@@ -36,7 +37,8 @@ body {
 
 .hero-copy,
 .hero-side,
-.form-shell {
+.form-shell,
+.deploy-note {
   padding: 1.6rem;
 }
 
@@ -54,7 +56,8 @@ body {
 .hero-side p,
 .hero-side,
 .form-heading p,
-.file-line {
+.file-line,
+.deploy-note {
   color: var(--ml-muted);
 }
 
@@ -66,6 +69,11 @@ body {
 
 .hero-side {
   background: linear-gradient(180deg, #f7fbf8 0%, #eef4ef 100%);
+}
+
+.deploy-note {
+  margin-bottom: 1rem;
+  background: #fbfcf8;
 }
 
 .form-shell {

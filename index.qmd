@@ -9,34 +9,16 @@ toc: false
 ```{r}
 #| context: setup
 #| include: false
-user_lib <- Sys.getenv("R_LIBS_USER")
-if (nzchar(user_lib)) {
-  dir.create(user_lib, recursive = TRUE, showWarnings = FALSE)
-  .libPaths(c(normalizePath(user_lib, winslash = "/", mustWork = FALSE), .libPaths()))
-}
-
 required_packages <- c("shiny", "openxlsx")
 missing_packages <- required_packages[
   !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
 ]
 
 if (length(missing_packages) > 0) {
-  install.packages(
-    missing_packages,
-    repos = "https://cloud.r-project.org",
-    lib = if (nzchar(user_lib)) user_lib else .libPaths()[1]
-  )
-}
-
-still_missing <- required_packages[
-  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
-]
-
-if (length(still_missing) > 0) {
   stop(
     paste0(
-      "Please install the required package(s): ",
-      paste(still_missing, collapse = ", ")
+      "Please install the following package(s) before running or publishing: ",
+      paste(missing_packages, collapse = ", ")
     )
   )
 }
@@ -44,7 +26,7 @@ if (length(still_missing) > 0) {
 library(shiny)
 library(openxlsx)
 
-default_xlsx <- file.path("Z:/Yang Lu/Leave Application", "medical_leave_records.xlsx")
+default_xlsx <- file.path("data", "medical_leave_records.xlsx")
 excel_path <- path.expand(Sys.getenv("HR_MEDICAL_LEAVE_EXCEL", unset = default_xlsx))
 
 allowed_leave_types <- c("Medical leave", "Annual leave")
@@ -103,20 +85,32 @@ append_row <- function(worker_id, name, leave_type, leave_date, path = excel_pat
 }
 ```
 
-:::: hero-grid
+::::: hero-grid
 ::: hero-copy
 `Worker Self-Service`
 
 # Medical Leave Submission
 
-Please fill in personal details on this page. Each successful submission is automatically saved into the Excel file configured for HR.
+Workers can submit their details on this page. Each successful submission is written to the current Excel workbook path used by the app.
 
 -   Prepare your `Worker ID`
 -   Confirm your `Name`
 -   Choose the correct `Leave type`
 -   Select the exact `Leave date`
 :::
-::::
+
+::: hero-side
+## Storage Note
+
+When this app runs on `shinyapps.io`, it can write to an Excel file inside the app instance, but that local file is not guaranteed to persist across redeploys or instance changes.
+
+Use a remote storage service if you need permanent HR records.
+:::
+:::::
+
+::: deploy-note
+For permanent cloud storage, replace local Excel writing with a remote backend such as Google Sheets, OneDrive/SharePoint, Dropbox, or a database.
+:::
 
 ```{r}
 div(
@@ -149,7 +143,7 @@ div(
       )
     )
   ),
-  actionButton("submit", "Submit", class = "primary-btn"),
+  actionButton("submit", "Save To Excel", class = "primary-btn"),
   div(class = "status-wrap", uiOutput("status_ui")),
   div(
     class = "file-line",
