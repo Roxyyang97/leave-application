@@ -1,0 +1,242 @@
+---
+title: "HR Medical Leave Intake"
+format: html
+server: shiny
+page-layout: full
+toc: false
+---
+
+```{r}
+#| context: setup
+#| include: false
+user_lib <- Sys.getenv("R_LIBS_USER")
+if (nzchar(user_lib)) {
+  dir.create(user_lib, recursive = TRUE, showWarnings = FALSE)
+  .libPaths(c(normalizePath(user_lib, winslash = "/", mustWork = FALSE), .libPaths()))
+}
+
+required_packages <- c("shiny", "openxlsx")
+missing_packages <- required_packages[
+  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
+]
+
+if (length(missing_packages) > 0) {
+  install.packages(
+    missing_packages,
+    repos = "https://cloud.r-project.org",
+    lib = if (nzchar(user_lib)) user_lib else .libPaths()[1]
+  )
+}
+
+still_missing <- required_packages[
+  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
+]
+
+if (length(still_missing) > 0) {
+  stop(
+    paste0(
+      "Please install the required package(s): ",
+      paste(still_missing, collapse = ", ")
+    )
+  )
+}
+
+library(shiny)
+library(openxlsx)
+
+default_xlsx <- file.path("Z:/Yang Lu/Leave Application", "medical_leave_records.xlsx")
+excel_path <- path.expand(Sys.getenv("HR_MEDICAL_LEAVE_EXCEL", unset = default_xlsx))
+
+allowed_leave_types <- c("Medical leave", "Annual leave")
+headers <- c(
+  "Submitted At",
+  "Worker ID",
+  "Name",
+  "Leave type",
+  "Leave date"
+)
+
+ensure_workbook <- function(path = excel_path) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+
+  if (!file.exists(path)) {
+    wb <- createWorkbook()
+    addWorksheet(wb, "Records")
+    writeData(
+      wb,
+      sheet = "Records",
+      x = matrix(headers, nrow = 1),
+      startRow = 1,
+      colNames = FALSE
+    )
+    saveWorkbook(wb, path, overwrite = TRUE)
+  }
+}
+
+append_row <- function(worker_id, name, leave_type, leave_date, path = excel_path) {
+  ensure_workbook(path)
+
+  wb <- loadWorkbook(path)
+  sheet_name <- names(wb)[1]
+  existing_rows <- nrow(readWorkbook(path, sheet = sheet_name, colNames = FALSE))
+  next_row <- existing_rows + 1
+
+  row_data <- data.frame(
+    "Submitted At" = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+    "Worker ID" = trimws(worker_id),
+    "Name" = trimws(name),
+    "Leave type" = trimws(leave_type),
+    "Leave date" = format(as.Date(leave_date), "%Y-%m-%d"),
+    check.names = FALSE,
+    stringsAsFactors = FALSE
+  )
+
+  writeData(
+    wb,
+    sheet = sheet_name,
+    x = row_data,
+    startRow = next_row,
+    colNames = FALSE
+  )
+
+  saveWorkbook(wb, path, overwrite = TRUE)
+}
+```
+
+:::: hero-grid
+::: hero-copy
+`Worker Self-Service`
+
+# Medical Leave Submission
+
+Please fill in personal details on this page. Each successful submission is automatically saved into the Excel file configured for HR.
+
+-   Prepare your `Worker ID`
+-   Confirm your `Name`
+-   Choose the correct `Leave type`
+-   Select the exact `Leave date`
+:::
+::::
+
+```{r}
+div(
+  class = "form-shell",
+  div(
+    class = "form-heading",
+    h2("Leave Application Form"),
+    p("Fill in the required fields and click Save To Excel.")
+  ),
+  div(
+    class = "form-grid",
+    div(class = "field-card", textInput("worker_id", "Worker ID")),
+    div(class = "field-card", textInput("name", "Name")),
+    div(
+      class = "field-card",
+      selectInput(
+        "leave_type",
+        "Leave type",
+        choices = allowed_leave_types,
+        selected = allowed_leave_types[1]
+      )
+    ),
+    div(
+      class = "field-card",
+      dateInput(
+        "leave_date",
+        "Leave date",
+        value = Sys.Date(),
+        format = "yyyy-mm-dd"
+      )
+    )
+  ),
+  actionButton("submit", "Submit", class = "primary-btn"),
+  div(class = "status-wrap", uiOutput("status_ui")),
+  div(
+    class = "file-line",
+    tags$strong("Excel file: "),
+    code(normalizePath(excel_path, winslash = "/", mustWork = FALSE))
+  )
+)
+```
+
+```{r}
+#| context: server
+status_message <- reactiveVal(NULL)
+
+observeEvent(input$submit, ignoreInit = TRUE, {
+  current_session <- getDefaultReactiveDomain()
+  worker_id <- trimws(input$worker_id)
+  name <- trimws(input$name)
+  leave_type <- trimws(input$leave_type)
+  leave_date <- input$leave_date
+
+  if (!nzchar(worker_id) || !nzchar(name) || !nzchar(leave_type) || is.null(leave_date)) {
+    status_message(list(
+      type = "error",
+      text = "Please fill in Worker ID, Name, Leave type, and Leave date."
+    ))
+    return()
+  }
+
+  if (!leave_type %in% allowed_leave_types) {
+    status_message(list(
+      type = "error",
+      text = "Please choose Medical leave or Annual leave."
+    ))
+    return()
+  }
+
+  parsed_date <- tryCatch(as.Date(leave_date), error = function(e) NA)
+  if (is.na(parsed_date)) {
+    status_message(list(
+      type = "error",
+      text = "Invalid date format."
+    ))
+    return()
+  }
+
+  tryCatch(
+    {
+      append_row(worker_id, name, leave_type, parsed_date)
+      status_message(list(
+        type = "success",
+        text = "Record saved successfully."
+      ))
+
+      updateTextInput(current_session, "worker_id", value = "")
+      updateTextInput(current_session, "name", value = "")
+      updateSelectInput(current_session, "leave_type", selected = allowed_leave_types[1])
+      updateDateInput(current_session, "leave_date", value = Sys.Date())
+    },
+    error = function(e) {
+      status_message(list(
+        type = "error",
+        text = paste("Unable to save record:", conditionMessage(e))
+      ))
+    }
+  )
+})
+
+output$status_ui <- renderUI({
+  msg <- status_message()
+
+  if (is.null(msg)) {
+    return(NULL)
+  }
+
+  is_success <- identical(msg$type, "success")
+  fg <- if (is_success) "#155724" else "#7a1f2a"
+  bg <- if (is_success) "#dff6e5" else "#fde7ea"
+  border <- if (is_success) "#b8e0c2" else "#f3bac1"
+
+  div(
+    class = "status-box",
+    style = paste(
+      sprintf("color: %s;", fg),
+      sprintf("background-color: %s;", bg),
+      sprintf("border: 1px solid %s;", border)
+    ),
+    msg$text
+  )
+})
+```
